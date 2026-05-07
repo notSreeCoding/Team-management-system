@@ -1,68 +1,63 @@
 package com.sreeraj.TMS.security;
 
+import com.sreeraj.TMS.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 
-@Component
+@Service
 public class JwtService {
 
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor("thisismyjwtsecretkeynoonecantouchit".getBytes(StandardCharsets.UTF_8));
+    @Value("${jwt.secret}")
+    private String secret;
 
-    private final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 10;
+    @Value("${jwt.access-expiration-ms}")
+    private long accessExpirationMs;
 
-    private final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24;
+    @Value("${jwt.refresh-expiration-ms}")
+    private long refreshExpirationMs;
 
-
-    public String generateAccessToken(String username) {
-
-        return Jwts.builder()
-
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_EXPIRATION))
-                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
-                .compact();
-
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateRefreshToken(String username) {
-
+    public String generateAccessToken(User user) {
         return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_TOKEN_EXPIRATION))
-                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+                .claims(Map.of("role", user.getRole().name()))
+                .subject(user.getEmail())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + accessExpirationMs))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public String generateRefreshToken(User user) {
+        return Jwts.builder()
+                .subject(user.getEmail())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + refreshExpirationMs))
+                .signWith(getSigningKey())
                 .compact();
     }
 
     public String extractEmail(String token) {
-        return extractAllClaims(token).getSubject();
-    }
-
-    private Claims extractAllClaims(String token) {
-
-        return Jwts.parser()
-                .setSigningKey(SECRET_KEY)
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
                 .build()
-                .parseClaimsJws(token).getBody();
+                .parseSignedClaims(token)
+                .getPayload();
+
+        return claims.getSubject();
     }
 
-    public boolean validateToken(String token, String username) {
-        String extractedUsername = extractEmail(token);
-        return extractedUsername.equals(username) && !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token) {
-
-        Date expiration = extractAllClaims(token).getExpiration();
-
-        return expiration.before(new Date());
+    public boolean isTokenValid(String token, String email) {
+        return extractEmail(token).equals(email);
     }
 }

@@ -2,6 +2,7 @@ package com.sreeraj.TMS.controller;
 
 import com.sreeraj.TMS.dto.AuthRespDTO;
 import com.sreeraj.TMS.dto.LoginDTO;
+import com.sreeraj.TMS.dto.RefreshDTO;
 import com.sreeraj.TMS.dto.RegDTO;
 import com.sreeraj.TMS.service.AuthService;
 import jakarta.validation.Valid;
@@ -31,5 +32,10 @@ public class AuthController {
     ) {
 
         return authService.login(request);
+    }
+
+    @PostMapping("/refresh")
+    public AuthRespDTO refresh(@RequestBody RefreshDTO request) {
+        return authService.refreshToken(request);
     }
 }
